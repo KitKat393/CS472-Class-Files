@@ -350,7 +350,7 @@ void get_current_ntp_time(ntp_timestamp_t *ntp_ts){
     // DONE
     // TODO: Implement this function
     // Hint: Use gettimeofday(), convert epoch, scale microseconds
-    memset(ntp_ts, 0, sizeof(ntp_timestamp_t));
+    // memset(ntp_ts, 0, sizeof(ntp_timestamp_t));
 }
 
 //STUDENT TODO
@@ -628,8 +628,8 @@ int build_ntp_request(ntp_packet_t* packet) {
                        NTP_MODE_CLIENT);
 
     packet->stratum   = 0;
-    packet->poll      = 4;
-    packet->precision = -6;
+    packet->poll      = 6;
+    packet->precision = -20;
 
     get_current_ntp_time(&packet->xmit_time);
     // After you implement this, uncomment the line below to debug:
@@ -800,7 +800,9 @@ int calculate_ntp_offset(const ntp_packet_t* request,
     result->client_time = *recv_time;
 
     result->final_dispersion =
-        GET_NTP_Q1616_TS(response->root_dispersion);
+    GET_NTP_Q1616_TS(response->root_dispersion) +
+    (GET_NTP_Q1616_TS(response->root_delay) / 2.0) +
+    (result->delay / 2.0);
 
     return RC_OK;
 }
