@@ -215,15 +215,18 @@ int main(int argc, char *argv[]){
 
     //YOU DONT NEED TO DO ANYTHING OR MODIFY ANYTHING IN MAIN().  MAKE SURE YOU UNDERSTAND
     //THE CODE HOWEVER
-    sock = server_connect(host, port);
+    
 
     if(argc < 4){
         print_usage(argv[0]);
         //process the default request
+        printf("\n\nProcessing a default request for %s (useful for debugging)\n\n", resource);
+        sock = server_connect(host, port);
         submit_request(sock, host, port, resource);
 	} else {
         host = argv[1];
         port = atoi(argv[2]);
+        sock = server_connect(host, port);
         resource = argv[3];
         if (port == 0) {
             fprintf(stderr, "NOTE: <port> must be an integer, using default port %d\n", DEFAULT_PORT);
