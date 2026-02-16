@@ -251,3 +251,76 @@ static int build_packet(const msg_cmd_t *cmd,
 
     return sizeof(crypto_pdu_t) + payload_len;
 }
+
+
+int get_command(char *cmd_buff, size_t cmd_buff_sz, msg_cmd_t *msg_cmd)
+{
+    if ((cmd_buff == NULL) || (cmd_buff_sz == 0)) return CMD_NO_EXEC;
+
+    printf("> ");
+    fflush(stdout);
+    
+    // Get input from user
+    if (fgets(cmd_buff, cmd_buff_sz, stdin) == NULL) {
+        printf("[WARNING] Error reading input command.\n\n");
+        return CMD_NO_EXEC;
+    }
+    
+    // Remove trailing newline
+    cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
+
+    // Interpret the command based on first character
+    switch (cmd_buff[0]) {
+        case '!':
+            // Encrypted message - everything after '!' is the message
+            msg_cmd->cmd_id = MSG_ENCRYPTED_DATA;
+            msg_cmd->cmd_line = cmd_buff + 1; // Skip the '!' character
+            return CMD_EXECUTE;
+            
+        case '#':
+            // Key exchange request - no message data
+            msg_cmd->cmd_id = MSG_KEY_EXCHANGE;
+            msg_cmd->cmd_line = NULL;
+            return CMD_EXECUTE;
+            
+        case '$':
+            // Digital signature (not implemented in this assignment)
+            msg_cmd->cmd_id = MSG_DIG_SIGNATURE;
+            msg_cmd->cmd_line = NULL;
+            printf("[INFO] Digital signature command not implemented yet.\n\n");
+            return CMD_NO_EXEC;
+            
+        case '-':
+            // Client exit command
+            msg_cmd->cmd_id = MSG_CMD_CLIENT_STOP;
+            msg_cmd->cmd_line = NULL;
+            return CMD_EXECUTE;
+            
+        case '=':
+            // Server shutdown command
+            msg_cmd->cmd_id = MSG_CMD_SERVER_STOP;
+            msg_cmd->cmd_line = NULL;
+            return CMD_EXECUTE;
+            
+        case '?':
+            // Help - display available commands
+            msg_cmd->cmd_id = MSG_HELP_CMD;
+            msg_cmd->cmd_line = NULL;
+            printf("Available commands:\n");
+            printf("  <message>  : Send plain text message\n");
+            printf("  !<message> : Send encrypted message (requires key exchange first)\n");
+            printf("  #          : Request key exchange from server\n");
+            printf("  ?          : Show this help message\n");
+            printf("  -          : Exit the client\n");
+            printf("  =          : Exit the client and request server shutdown\n\n");
+            return CMD_NO_EXEC;
+            
+        default:
+            // Regular text message
+            msg_cmd->cmd_id = MSG_DATA;
+            msg_cmd->cmd_line = cmd_buff;
+            return CMD_EXECUTE;
+    }
+    
+    return CMD_NO_EXEC;
+}
