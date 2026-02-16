@@ -1,0 +1,41 @@
+aap393
+Ankit Patel
+
+
+1.
+TCP is better for this encrypted communication application because the encryption requires persistent session state. TCP gives a reliable, connection oriented channel that maintains that state. In our implementation, the client first sends a MSG_KEY_EXCHANGE request, and the server generates a key pair. The client stores its session key, and the server stores its corresponding key. All of the encrypted messages depend on those keys remaining synchronized for the duration of the connection. TCP guarantees that once the connection is established, both sides share a consistent communication context.
+
+UDP wouldn't be a good choice for this application for multiple reasons. UDP doesn't require a connection, and as such doesn't guarantee delivery or byte order. If the key exchange packet was lost, the client might believe it has a valid key while the server doesn't, causing decryption failures. Encrypted messages could also arrive out of order. If so, decryption would still work mathematically, but application level logic (such as echo responses) can become inconsistent.
+
+The stateful nature of TCP aligns perfectly with session based encryption. When the TCP connection closes, the session keys become invalid. This natural lifecycle simplifies session management. Without TCP, we would need to implement reliability, ordering, and session tracking ourselves, essentially recreating TCP at the application layer.
+
+2.
+We designed the protocol using a structured binary PDU instead of raw text commands because structured communication is more reliable, extensible, and unambiguous. If we sent strings like "ENCRYPT:Hello World", parsing would rely on delimiters and text processing. This can lead to issues when encrypted data contains arbitrary byte values that may not represent printable characters.
+
+The binary PDU structure separates control information (the header), from the content (the payload). The msg_type clearly defines how the payload should be interpreted. The payload_len specifies exactly how many bytes follow, which is essential because encrypted data may include null bytes or nonprintable values. This avoids the need to rely on string termination characters like \0, which do not work for binary data.
+
+This structure also makes the protocol easy to add to. We can easily add new message types without changing the parsing logic. The receiver first reads the fixed size header, determines how to interpret the payload, then processes it accordingly. Without a structured header, the receiver would struggle to distinguish between different message types, handle binary safely, or determine where one message ends and another begins.
+
+
+3.
+TCP is stream-oriented, which means it delivers a continuous stream of bytes without preserving message boundaries. Unlike UDP, TCP does not guarantee that one send call corresponds to one receive call. A single PDU might arrive in multiple fragments, or multiple PDUs might arrive in a single read. Because of this, the payload_len field is critical for reconstructing message boundaries at the application layer.
+
+For example, if the client sends two PDUs quickly, the server might receive them in one recv() call. Without a length field, the server would not know where the first message ends and the second begins. Similarly, if a large encrypted payload arrives in parts, the server must know how many bytes to continue reading before processing the complete message.
+
+If we removed payload_len, we would need to rely on delimiters or fixed size messages, both of which are problematic for binary encrypted data. Encrypted bytes can contain any value, including delimiter characters. The payload_len field solves this by explicitly defining the payload boundary. Essentially, we are implementing message framing on top of TCP’s byte stream, which is necessary because TCP itself does not provide message framing.
+
+
+4.
+Generating new keys per session ensures both security and proper session isolation. If we hardcoded pre shared keys into both the client and server, every session would use the same encryption key. This means that if the key were ever discovered, all past and future communications could be decrypted, ultimately creating a very easy security breach. By generating new keys for each TCP connection, we limit exposure to a single session.
+
+Session specific keys also align with TCP’s connection lifecycle. When a client connects, keys are generated and stored in memory. When the connection closes, the keys are discarded. If the connection drops after key exchange, the session state is lost, and a new key exchange must occur. This prevents reuse of potentially compromised keys and ensures both sides remain synchronized.
+
+From a practical perspective, per session keys prevent interference between multiple clients. Each client connection maintains its own serverside key state. This design would be far more complex with UDP, where there is no built in connection state. We would need to track client addresses manually and associate keys with them, increasing complexity and potential security risks. TCP simplifies this by naturally taking into account session state.
+
+
+5.
+Although the client and server have defined roles, the direction field makes the protocol more explicit, and verifiable. It allows each side to confirm whether a received PDU matches expectations. For example, if the server accidentally sends a DIR_REQUEST instead of a DIR_RESPONSE, the client can detect a protocol inconsistency. This helps with debugging and prevents subtle logic errors.
+
+The direction field also improves protocol clarity. Each PDU indicates not only what type of message it is (msg_type) but also who initiated it. This is particularly useful when using debugging tools like print_msg_info(), where the field confirms correct flow.
+
+Additionally, including direction makes the protocol more future proof. If we extended this system to peer to peer communication, both sides could send requests and responses interchangeably. The direction field would become essential for distinguishing initiator from responder. Even in a simple client server model, explicitly encoding direction strengthens protocol validation, reduces ambiguity, and makes the design more robust and easier to maintain.
